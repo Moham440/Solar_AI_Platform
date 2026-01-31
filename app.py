@@ -23,7 +23,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-DEMO_MODE = True  # ⚠️ obligatoire pour Streamlit Cloud
 
 # CSS personnalisé pour un design professionnel
 st.markdown("""
@@ -103,11 +102,12 @@ st.markdown("""
 
 @st.cache_data(show_spinner=False)
 def load_data():
+    """Chargement des données principales"""
     base_dir = Path(__file__).parent
     data_path = base_dir / "data" / "merged_cleaned_data.csv"
 
     if not data_path.exists():
-        st.error("❌ Données absentes (mode démo requis)")
+        st.error("❌ Fichier de données non trouvé. Veuillez générer les données avec `python solar_ai_platform.py`")
         st.stop()
 
     df = pd.read_csv(data_path)
@@ -115,40 +115,41 @@ def load_data():
     return df
 
 
-
 @st.cache_data(show_spinner=False)
 def load_processed_data():
-    """
-    Chargement sécurisé des données d'anomalies
-    Mode démonstration - Streamlit Cloud Ready
-    """
-    from pathlib import Path
-    import pandas as pd
-
+    """Chargement sécurisé des données d'anomalies"""
     base_dir = Path(__file__).parent
     anomaly_report = base_dir / "outputs" / "anomalies_report.csv"
 
     if not anomaly_report.exists():
-        st.warning("⚠️ Rapport d'anomalies introuvable (mode démonstration)")
+        st.warning("⚠️ Rapport d'anomalies introuvable. Générez-le avec `python solar_ai_platform.py`")
         return None
 
-    df = pd.read_csv(anomaly_report)
-    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-    return df
+    try:
+        df = pd.read_csv(anomaly_report)
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        return df
+    except Exception as e:
+        st.error(f"❌ Erreur de chargement : {str(e)}")
+        return None
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource
 def load_models():
+    """Chargement des modèles entraînés avec gestion d'erreurs robuste"""
     base_dir = Path(__file__).parent
     model_path = base_dir / "models" / "all_models.pkl"
 
     if not model_path.exists():
-        st.warning("⚠️ Modèles absents – prédiction simulée")
         return None
 
-    with open(model_path, "rb") as f:
-        return pickle.load(f)
-
+    try:
+        with open(model_path, 'rb') as f:
+            models_data = pickle.load(f)
+        return models_data
+    except Exception as e:
+        st.warning(f"⚠️ Impossible de charger les modèles : {str(e)}")
+        return None
 
 
 def create_kpi_card(label, value, unit="", delta=None, color="blue"):
@@ -206,10 +207,9 @@ def page_overview():
     with col1:
         st.subheader("📈 Production Énergétique (7 derniers jours)")
 
-        # Agrégation journalière
         df_daily = df.copy()
         df_daily['Date'] = df_daily['Timestamp'].dt.date
-        daily_prod = df_daily.groupby('Date')['AC_Power'].sum() / 4  # kWh
+        daily_prod = df_daily.groupby('Date')['AC_Power'].sum() / 4
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(
@@ -230,7 +230,7 @@ def page_overview():
             template='plotly_white'
         )
 
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("🔋 Performance par Onduleur")
@@ -257,7 +257,7 @@ def page_overview():
             template='plotly_white'
         )
 
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     # Profil journalier
     st.subheader("☀️ Profil de Production Journalier")
@@ -305,7 +305,7 @@ def page_overview():
         template='plotly_white'
     )
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def page_prediction():
@@ -315,12 +315,52 @@ def page_prediction():
     models_data = load_models()
 
     if models_data is None:
-        st.info("🧪 Mode démonstration – prédiction simulée")
+        st.warning("⚠️ Modèles IA non disponibles")
+
+        st.info("""
+        ### 📝 Pour activer les prédictions IA :
+
+        1. **En local**, exécutez :
+```bash
+           python solar_ai_platform.py
+```
+
+        2. Les modèles seront générés et sauvegardés dans le dossier `models/`
+
+        3. Rechargez cette page pour voir les prédictions réelles
+        """)
+
+        # Afficher démo avec métriques simulées
+        st.subheader("📊 Performance des Modèles IA (Démo)")
+
+        col1, col2, col3 = st.columns(3)
+
+        demo_metrics = {
+            'RandomForest': {'MAE': 6.42, 'RMSE': 20.88, 'R2': 0.9999},
+            'GradientBoosting': {'MAE': 6.93, 'RMSE': 14.27, 'R2': 0.9999},
+            'Ensemble': {'MAE': 5.66, 'RMSE': 15.10, 'R2': 0.9999}
+        }
+
+        for idx, (model_name, metrics) in enumerate(demo_metrics.items()):
+            with [col1, col2, col3][idx]:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            padding: 1.5rem; border-radius: 10px; color: white;
+                            box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <h3 style="margin: 0 0 1rem 0;">{model_name} (Démo)</h3>
+                    <div style="display: grid; gap: 0.5rem;">
+                        <div><strong>MAE:</strong> {metrics['MAE']:.2f} kW</div>
+                        <div><strong>RMSE:</strong> {metrics['RMSE']:.2f} kW</div>
+                        <div><strong>R² Score:</strong> {metrics['R2']:.4f}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
         return
 
+    # Si les modèles sont disponibles, afficher les vraies métriques
     metrics = models_data.get('metrics', {})
 
-    # Comparaison des modèles
     st.subheader("📊 Performance des Modèles IA")
 
     col1, col2, col3 = st.columns(3)
@@ -349,7 +389,6 @@ def page_prediction():
     # Importance des features
     st.subheader("🎯 Importance des Variables (Explainable AI)")
 
-    # Simuler l'importance des features
     features = ['Irradiance', 'Hour_Sin', 'Module_Temperature', 'DC_Power', 'Hour_Cos',
                 'Temp_Difference', 'Month_Sin', 'Thermal_Stress', 'Is_Daytime', 'DC_Voltage']
     importance = np.array([0.35, 0.18, 0.12, 0.10, 0.08, 0.06, 0.04, 0.03, 0.02, 0.02])
@@ -374,9 +413,9 @@ def page_prediction():
         title="Top 10 Variables les Plus Influentes"
     )
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, use_container_width=True)
 
-    # Prédiction interactive
+    # Simulateur de prédiction
     st.subheader("🔮 Simulateur de Prédiction")
 
     col1, col2, col3 = st.columns(3)
@@ -394,13 +433,11 @@ def page_prediction():
         month = st.slider("Mois", 1, 12, 6)
 
     if st.button("🚀 Lancer la Prédiction", type="primary"):
-        # Simulation de prédiction
         predicted_power = (irradiance * 0.8 * np.sin(hour * np.pi / 12)) * 0.001 * dc_voltage * dc_current
         predicted_power = max(0, predicted_power - (temp_module - 25) * 0.5)
 
         st.success(f"### ⚡ Puissance AC Prédite : {predicted_power:.2f} kW")
 
-        # Jauge de confiance
         confidence = 95.0 + np.random.uniform(-3, 3)
 
         fig = go.Figure(go.Indicator(
@@ -426,7 +463,7 @@ def page_prediction():
         ))
 
         fig.update_layout(height=300)
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def page_anomalies():
@@ -436,7 +473,20 @@ def page_anomalies():
     df_processed = load_processed_data()
 
     if df_processed is None or 'Is_Anomaly' not in df_processed.columns:
-        st.warning("⚠️ Données d'anomalies non disponibles. Exécutez d'abord solar_ai_platform.py")
+        st.warning("⚠️ Données d'anomalies non disponibles")
+
+        st.info("""
+        ### 📝 Pour activer la détection d'anomalies :
+
+        1. Exécutez en local :
+```bash
+           python solar_ai_platform.py
+```
+
+        2. Le fichier `outputs/anomalies_report.csv` sera généré
+
+        3. Rechargez cette page
+        """)
         return
 
     # Statistiques d'anomalies
@@ -446,18 +496,18 @@ def page_anomalies():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown(create_kpi_card("Anomalies Détectées", f"{total_anomalies}", "", color="red"), unsafe_allow_html=True)
+        st.markdown(create_kpi_card("Anomalies Détectées", f"{total_anomalies}", ""), unsafe_allow_html=True)
 
     with col2:
-        st.markdown(create_kpi_card("Taux d'Anomalies", f"{anomaly_rate:.2f}", "%", color="orange"), unsafe_allow_html=True)
+        st.markdown(create_kpi_card("Taux d'Anomalies", f"{anomaly_rate:.2f}", "%"), unsafe_allow_html=True)
 
     with col3:
         high_severity = len(df_processed[df_processed['Severity'] == 'Élevée'])
-        st.markdown(create_kpi_card("Gravité Élevée", f"{high_severity}", "", color="red"), unsafe_allow_html=True)
+        st.markdown(create_kpi_card("Gravité Élevée", f"{high_severity}", ""), unsafe_allow_html=True)
 
     with col4:
         total_losses = df_processed['Energy_Loss_kWh'].sum()
-        st.markdown(create_kpi_card("Pertes Estimées", f"{total_losses:.1f}", "kWh", color="red"), unsafe_allow_html=True)
+        st.markdown(create_kpi_card("Pertes Estimées", f"{total_losses:.1f}", "kWh"), unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -477,7 +527,7 @@ def page_anomalies():
         )])
 
         fig.update_layout(height=400)
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("🔧 Types d'Anomalies")
@@ -498,7 +548,7 @@ def page_anomalies():
             template='plotly_white'
         )
 
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     # Alertes actives
     st.subheader("🚨 Alertes Actives Prioritaires")
@@ -506,7 +556,6 @@ def page_anomalies():
     anomalies = df_processed[df_processed['Is_Anomaly'] == 1].copy()
 
     if len(anomalies) > 0:
-        # Filtres
         col1, col2 = st.columns([1, 3])
 
         with col1:
@@ -523,13 +572,11 @@ def page_anomalies():
                 default=[]
             )
 
-        # Application des filtres
         filtered_anomalies = anomalies[anomalies['Severity'].isin(severity_filter)]
 
         if inverter_filter:
             filtered_anomalies = filtered_anomalies[filtered_anomalies['Inverter_ID'].isin(inverter_filter)]
 
-        # Affichage des alertes
         for idx, row in filtered_anomalies.head(10).iterrows():
             severity_class = {
                 'Élevée': 'alert-high',
@@ -549,7 +596,7 @@ def page_anomalies():
     else:
         st.success("✅ Aucune anomalie détectée actuellement")
 
-    # Timeline des anomalies
+    # Timeline
     st.subheader("📅 Timeline des Anomalies")
 
     if len(anomalies) > 0:
@@ -574,7 +621,7 @@ def page_anomalies():
             hovermode='x unified'
         )
 
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def page_inverters():
@@ -585,7 +632,6 @@ def page_inverters():
     if df is None:
         return
 
-    # Calcul des métriques par onduleur
     inverter_stats = df.groupby('Inverter_ID').agg({
         'AC_Power': ['mean', 'max', 'sum'],
         'DC_Power': 'mean',
@@ -596,17 +642,15 @@ def page_inverters():
     inverter_stats['Efficiency'] = (inverter_stats['Avg_Power'] / inverter_stats['Avg_DC'] * 100).round(2)
     inverter_stats = inverter_stats.reset_index()
 
-    # Classement
     inverter_stats['Rank'] = inverter_stats['Total_Power'].rank(ascending=False).astype(int)
     inverter_stats = inverter_stats.sort_values('Rank')
 
     st.subheader("🏆 Classement des Onduleurs")
 
-    # Podium
     col1, col2, col3 = st.columns(3)
 
     if len(inverter_stats) >= 3:
-        with col2:  # 1er place au centre
+        with col2:
             st.markdown(f"""
             <div style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
                         padding: 2rem; border-radius: 15px; text-align: center; color: white;">
@@ -617,7 +661,7 @@ def page_inverters():
             </div>
             """, unsafe_allow_html=True)
 
-        with col1:  # 2ème place
+        with col1:
             st.markdown(f"""
             <div style="background: linear-gradient(135deg, #C0C0C0 0%, #808080 100%);
                         padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin-top: 2rem;">
@@ -628,7 +672,7 @@ def page_inverters():
             </div>
             """, unsafe_allow_html=True)
 
-        with col3:  # 3ème place
+        with col3:
             st.markdown(f"""
             <div style="background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
                         padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin-top: 2rem;">
@@ -641,10 +685,8 @@ def page_inverters():
 
     st.markdown("---")
 
-    # Tableau détaillé
     st.subheader("📊 Tableau de Performance Détaillé")
 
-    # Formatage du tableau
     st.dataframe(
         inverter_stats.style.background_gradient(cmap='RdYlGn', subset=['Efficiency'])
                             .format({
@@ -659,7 +701,6 @@ def page_inverters():
         height=400
     )
 
-    # Graphiques comparatifs
     col1, col2 = st.columns(2)
 
     with col1:
@@ -717,7 +758,6 @@ def page_climate():
 
     st.subheader("☀️ Corrélation Irradiance - Production")
 
-    # Scatter plot
     sample_data = df.sample(min(5000, len(df)))
 
     fig = px.scatter(
@@ -738,10 +778,8 @@ def page_climate():
     fig.update_layout(height=500, template='plotly_white')
     st.plotly_chart(fig, use_container_width=True)
 
-    # Impact de la température
     st.subheader("🌡️ Impact de la Température sur le Rendement")
 
-    # Binning par température
     df['Temp_Range'] = pd.cut(df['Module_Temperature'], bins=10)
     temp_impact = df.groupby('Temp_Range')['AC_Power'].mean().reset_index()
     temp_impact['Temp_Mid'] = temp_impact['Temp_Range'].apply(lambda x: x.mid)
@@ -767,7 +805,6 @@ def page_climate():
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Prévisions météo simplifiées
     st.subheader("📅 Prévisions de Production (3 jours)")
 
     col1, col2, col3 = st.columns(3)
@@ -797,7 +834,6 @@ def page_reports():
     if df is None:
         return
 
-    # Période d'analyse
     st.subheader("📊 Période d'Analyse")
 
     col1, col2 = st.columns(2)
@@ -808,7 +844,6 @@ def page_reports():
     with col2:
         end_date = st.date_input("Date de fin", value=df['Timestamp'].max())
 
-    # KPI Summary
     st.subheader("📈 Résumé des KPI")
 
     filtered_df = df[
@@ -839,7 +874,6 @@ def page_reports():
 
     st.table(pd.DataFrame(kpi_data))
 
-    # Options d'export
     st.subheader("💾 Export des Données")
 
     col1, col2, col3 = st.columns(3)
@@ -856,13 +890,12 @@ def page_reports():
 
     with col2:
         if st.button("📊 Générer Rapport PDF"):
-            st.info("📄 Fonctionnalité de génération PDF en développement")
+            st.info("📄 Fonctionnalité en développement")
 
     with col3:
         if st.button("📧 Envoyer par Email"):
-            st.info("📧 Fonctionnalité d'envoi par email en développement")
+            st.info("📧 Fonctionnalité en développement")
 
-    # Aperçu des données
     st.subheader("👁️ Aperçu des Données")
 
     st.dataframe(
@@ -871,7 +904,6 @@ def page_reports():
         height=400
     )
 
-    # Statistiques descriptives
     st.subheader("📐 Statistiques Descriptives")
 
     st.dataframe(
@@ -883,7 +915,6 @@ def page_reports():
 def main():
     """Application principale"""
 
-    # Sidebar
     with st.sidebar:
         st.image("https://via.placeholder.com/200x80/FF6B00/FFFFFF?text=SOLAR+AI", use_container_width=True)
 
@@ -930,10 +961,9 @@ def main():
 
         ---
 
-        © 2026 Chalabi Mohammed El Amine
+        © 2026 Solar AI Team
         """)
 
-    # Routage des pages
     if "Vue Générale" in page:
         page_overview()
     elif "Prédiction IA" in page:
