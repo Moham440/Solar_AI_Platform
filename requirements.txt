@@ -4,22 +4,10 @@
 # Streamlit Cloud Compatible
 # ==================================================
 
-# Core Data Science
-numpy>=1.24,<1.26
-pandas>=2.0,<2.2
-scipy>=1.10,<1.12
-
-# Machine Learning
-scikit-learn>=1.2,<1.4
-
-# Visualization
-matplotlib>=3.7,<3.9
-seaborn>=0.12,<0.14
-plotly>=5.15,<5.19
-
-# Streamlit
-streamlit>=1.25,<1.32
-
-# Utilities
-python-dateutil>=2.8
-pytz>=2023.3
+streamlit
+pandas
+numpy>=1.26.0
+plotly
+scikit-learn
+streamlit-folium
+folium
