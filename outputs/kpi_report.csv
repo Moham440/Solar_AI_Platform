@@ -1,0 +1,2 @@
+total_production_mwh,avg_power_kw,max_power_kw,capacity_factor,avg_efficiency,energy_yield,availability,uptime_hours,total_losses_kwh,anomaly_rate,n_inverters,best_inverter,worst_inverter
+5695.938808633213,1582.2052246203368,6682.864545552178,23.67555430512778,68.50912021456436,5.257816591648822,95.0,2645.25,0,0,5,INV_002,INV_005
