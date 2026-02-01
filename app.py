@@ -961,7 +961,7 @@ def main():
 
         ---
 
-        © 2026 Solar AI Team
+        © 2026 Chalabi Mohamed El Aminen
         """)
 
     if "Vue Générale" in page:
